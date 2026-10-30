@@ -19,6 +19,7 @@ builder.Services.AddHttpClient<AfadClient>(client =>
 
 // AFAD verisini veritabanına kaydeden sınıf
 builder.Services.AddScoped<EarthquakeImporter>();
+builder.Services.AddHostedService<EarthquakeSyncService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
