@@ -1,248 +1,119 @@
-# DepremTakip — İş Analizi Dokümanı
+# DepremTakip — İş Analizi
 
 | | |
 |---|---|
 | **Proje** | DepremTakip API |
 | **Hazırlayan** | Emine Gül Palabıyık |
-| **Sürüm** | 0.1 — Faz 1 (Veri toplama) |
-| **Tarih** | 29.10.2026 |
-| **Durum** | Faz 1 tamamlandı, Faz 2 planlanıyor |
+| **Sürüm** | 0.2 |
+| **Son güncelleme** | 30.10.2026 |
 
 ---
 
-## 1. Problem Tanımı
+## 1. Problem ve Amaç
 
-Türkiye'de deprem verileri AFAD tarafından anlık olarak yayımlanır. Ancak bu veriler:
+### 1.1 Problem
 
-- **Geçmişe dönük analiz için uygun bir yerde tutulmaz.** AFAD'ın sitesinde anlık listeye bakılabilir, fakat "son 30 günde Malatya'da kaç deprem oldu?" gibi soruları cevaplamak için veriyi tek tek toplamak gerekir.
-- **Kişiye özel değildir.** Bir kullanıcı sadece kendi ilini veya belirli bir büyüklüğün üzerindeki depremleri takip etmek isterse bunu yapabileceği basit bir servis yoktur.
-- **Başka uygulamalara hazır sunulmaz.** Bir mobil uygulama ya da rapor aracı geliştirmek isteyen biri AFAD'ın ham verisini kendisi işlemek zorundadır.
+Deprem bilgisine AFAD, Kandilli Rasathanesi, mobil uygulamalar ve sosyal medya üzerinden ulaşılabiliyor. Ancak bu kaynaklar çoğunlukla Türkiye genelindeki **son depremlerin anlık listesini** sunuyor:
 
-## 2. Amaç
+- Kullanıcı bir depremi gördüğünde "bu ilde son bir ayda kaç deprem oldu?" sorusunun cevabına kolayca ulaşamıyor.
+- Kullanıcı sadece kendi bölgesini veya belirli büyüklükteki depremleri takip edemiyor.
+- Veriyi rapor veya uygulama için kullanmak isteyenler ham veriyi kendileri toplayıp işlemek zorunda kalıyor.
 
-AFAD deprem verilerini **düzenli olarak toplayan, kendi veritabanında saklayan** ve bu veriyi **filtrelenebilir, analiz edilebilir ve kişiselleştirilebilir** şekilde sunan bir REST API geliştirmek.
+### 1.2 Amaç
 
-## 3. Kapsam
+Deprem verisini düzenli olarak toplayan, geçmişe dönük sorgulanabilir şekilde saklayan, kullanıcıya özel uyarılar sunan ve analiz için istatistik üreten bir API geliştirmek.
 
-### 3.1 Faz planı
+### 1.3 Kapsam dışı (bu sürüm)
 
-| Faz | İçerik | Durum |
-|---|---|---|
-| **Faz 1** | AFAD'dan veri çekme, veritabanına kaydetme, kopya kayıt önleme | ✅ Tamamlandı |
-| Faz 2 | Otomatik (zamanlanmış) senkronizasyon | ⏳ Planlandı |
-| Faz 3 | Filtreli listeleme ve sayfalama | ⏳ Planlandı |
-| Faz 4 | İstatistik uç noktaları | ⏳ Planlandı |
-| Faz 5 | Kullanıcı kaydı / giriş (JWT) | ⏳ Planlandı |
-| Faz 6 | Kullanıcıya özel alarm kuralları | ⏳ Planlandı |
-| Faz 7 | Power BI raporu | ⏳ Planlandı |
-
-### 3.2 Kapsam dışı
-
-- Deprem verisinin kendisinin üretilmesi veya doğrulanması (tek kaynak AFAD'dır).
-- Mobil uygulama veya web arayüzü (bu proje yalnızca API'dir).
-- SMS / e-posta / push bildirimi gönderimi (alarmlar API üzerinden sorgulanabilir kayıt olarak tutulacak).
-
-## 4. Paydaşlar
-
-| Paydaş | Beklentisi |
+| Konu | Gerekçe |
 |---|---|
-| **Son kullanıcı** | Kendi bölgesindeki depremleri kolayca takip etmek, belirli büyüklükte deprem olunca haberdar olmak |
-| **Uygulama geliştirici** (API'yi kullanacak kişi) | Temiz, belgelenmiş, filtrelenebilir bir deprem verisi kaynağı |
-| **Veri analisti** | Geçmişe dönük, tutarlı ve kopyasız veri üzerinden rapor hazırlamak |
-| **AFAD** (veri sağlayıcı) | Servisine aşırı yük bindirilmemesi |
+| E-posta / SMS / push bildirimi | Ek altyapı (e-posta servisi) gerektiriyor. Bu sürümde uyarılar sistemde kayıt olarak tutulacak ve API üzerinden sorgulanabilecek. Gelecek sürümde değerlendirilecek. |
+| Mobil uygulama / web arayüzü | Proje yalnızca API'dir; arayüzler bu API'yi kullanarak geliştirilebilir. |
+| Erken uyarı | Sistem deprem **sonrası** bilgi ve takip amaçlıdır (bkz. NFR-08). |
 
-## 5. Fonksiyonel Gereksinimler
+## 2. Paydaşlar
 
-| No | Gereksinim | Faz | Durum |
-|---|---|---|---|
-| FR-01 | Sistem, AFAD'dan belirli bir zaman aralığındaki depremleri çekebilmelidir. | 1 | ✅ |
-| FR-02 | Kullanıcı, AFAD'daki son depremleri **kaydetmeden** önizleyebilmelidir. | 1 | ✅ |
-| FR-03 | Sistem, AFAD'dan çekilen depremleri veritabanına kaydedebilmelidir. | 1 | ✅ |
-| FR-04 | Aynı deprem veritabanına birden fazla kez kaydedilmemelidir. | 1 | ✅ |
-| FR-05 | AFAD bir depremin bilgisini sonradan değiştirirse (ör. büyüklük revizyonu) kayıt güncellenmelidir. | 1 | ✅ |
-| FR-06 | İçe aktarma işlemi sonunda kaç kayıt çekildiği, eklendiği ve güncellendiği raporlanmalıdır. | 1 | ✅ |
-| FR-07 | Sistem, kullanıcı müdahalesi olmadan belirli aralıklarla AFAD'ı kontrol etmelidir. | 2 | ⏳ |
-| FR-08 | Depremler tarih, büyüklük ve ile göre filtrelenip sayfalı listelenebilmelidir. | 3 | ⏳ |
-| FR-09 | İl bazında sayı, en büyük depremler ve günlük dağılım istatistikleri sunulmalıdır. | 4 | ⏳ |
-| FR-10 | Kullanıcı kayıt olup giriş yapabilmelidir. | 5 | ⏳ |
-| FR-11 | Giriş yapan kullanıcı il ve minimum büyüklük içeren alarm kuralı tanımlayabilmelidir. | 6 | ⏳ |
-
-## 6. Fonksiyonel Olmayan Gereksinimler
-
-| No | Gereksinim | Nasıl karşılanıyor |
+| Paydaş | Sistemle ilişkisi | Beklentisi |
 |---|---|---|
-| NFR-01 | **Veri bütünlüğü:** Kopya kayıt oluşmamalı. | Kod seviyesinde kontrol + veritabanında `EventId` üzerinde unique index (çift kontrol) |
-| NFR-02 | **Performans:** Filtre sorguları hızlı çalışmalı. | Tarih, büyüklük ve il kolonlarında index |
-| NFR-03 | **Kaynağa saygı:** AFAD'a aşırı yük bindirilmemeli. | Çok günlük içe aktarmalar gün gün parçalanıyor; tek istekte en fazla 30 gün |
-| NFR-04 | **Zaman tutarlılığı:** Saatler karışmamalı. | Tüm zamanlar UTC saklanıyor, gösterimde yerel saate çevrilecek |
-| NFR-05 | **Dayanıklılık:** AFAD yanıt vermezse sistem kilitlenmemeli. | AFAD isteklerinde 30 saniye zaman aşımı |
-| NFR-06 | **Değişime dayanıklılık:** AFAD veri formatı değişirse etkisi sınırlı olmalı. | AFAD verisi için ayrı DTO sınıfı; veritabanı modeli bundan bağımsız |
-| NFR-07 | **Belgelenmiş API:** Kullanıcılar uç noktaları kolayca keşfedebilmeli. | Swagger / OpenAPI arayüzü |
+| **Son kullanıcı** | API'yi kullanan uygulamalar üzerinden veriyi görür | Son depremlerin büyüklük, derinlik, merkez ve saat bilgisini güncel olarak görmek; kendi ilindeki geçmiş depremlere kolayca ulaşmak |
+| **Uygulama geliştirici** | API'yi kendi mobil veya web uygulamasında kullanır | Düzenli, belgelenmiş, filtrelenebilir veri |
+| **Veri analisti** | İstatistik uç noktalarını ve veritabanını kullanır | Kopya kaydı olmayan, tutarlı, geçmişe dönük veri ile rapor hazırlamak |
+| **Kamu kurumları / araştırmacılar** | Raporlardan ve istatistiklerden faydalanır | Bölgesel deprem sıklığı ve dağılım bilgisi |
+| **AFAD** | Veri sağlayıcı | Servisine aşırı yük bindirilmemesi |
 
-## 7. Kullanıcı Hikâyeleri ve Kabul Kriterleri (Faz 1)
+> Not: Kandilli Rasathanesi, mobil uygulamalar ve sosyal medya **alternatif bilgi kaynaklarıdır**; sistemle doğrudan ilişkileri olmadığı için paydaş olarak sayılmamıştır.
 
-### US-01 — AFAD verisini önizleme
+## 3. Fonksiyonel Gereksinimler
 
-> **Bir** geliştirici **olarak**, AFAD'dan son birkaç saatin depremlerini veritabanına kaydetmeden görmek **istiyorum**, **böylece** AFAD bağlantısının çalıştığını ve verinin nasıl geldiğini kontrol edebilirim.
+| No | Gereksinim | Durum |
+|---|---|---|
+| FR-01 | Sistem, AFAD'dan deprem bilgilerini alabilmelidir. | ✅ |
+| FR-02 | Kullanıcı, AFAD'daki son depremleri veritabanına kaydetmeden önizleyebilmelidir. | ✅ |
+| FR-03 | Sistem, AFAD'dan gelen depremleri veritabanına kaydedebilmelidir. | ✅ |
+| FR-04 | Aynı deprem veritabanına birden fazla kez kaydedilmemelidir. | ✅ |
+| FR-05 | AFAD bir depremin bilgisini değiştirirse, sistem yeni kayıt açmadan mevcut kaydı güncellemelidir. | ✅ |
+| FR-06 | Sistem, kullanıcı müdahalesi olmadan belirli aralıklarla AFAD'ı kontrol edip yeni depremleri kaydedebilmelidir. | ✅ |
+| FR-07 | Kullanıcı, depremleri il, tarih aralığı ve büyüklüğe göre filtreleyip sıralayabilmelidir. | ⏳ |
+| FR-08 | Sistem, bir il için belirli bir dönemdeki deprem sayısı ve en büyük deprem gibi özet bilgileri sunabilmelidir. | ⏳ |
+| FR-09 | Kullanıcı, depremleri ve istatistikleri giriş yapmadan (misafir olarak) görüntüleyebilmelidir. | ⏳ |
+| FR-10 | Kullanıcı, sisteme kayıt olup giriş yapabilmelidir. | ⏳ |
+| FR-11 | Giriş yapan kullanıcı, belirli bir il ve minimum büyüklük için alarm kuralı tanımlayabilmelidir. | ⏳ |
+| FR-12 | Kurala uyan bir deprem kaydedildiğinde sistem kullanıcı için bir bildirim kaydı oluşturmalı, kullanıcı da bildirimlerini görüntüleyebilmelidir. | ⏳ |
 
-**Kabul kriterleri:**
-- [x] `GET /api/afad/preview?hours=3` çağrıldığında son 3 saatin depremleri JSON olarak döner.
-- [x] `hours` 1–48 aralığı dışındaysa `400 Bad Request` döner.
-- [x] Bu işlem veritabanında hiçbir değişiklik yapmaz.
-- [x] AFAD'ın metin olarak gönderdiği sayılar (`"3.3"`) sayıya çevrilmiş olarak gelir.
+> **FR-08 için kullanım örneği:** Bir uygulama "Malatya'da 4.2 büyüklüğünde deprem" bilgisini gösterirken yanına "Malatya'da son 1 ayın depremleri" butonu koyabilir. Bu butonun arkasındaki veriyi API sağlar.
 
-### US-02 — Depremleri veritabanına aktarma
+> **FR-09 gerekçesi:** Vatandaşlar deprem bilgisine ulaşmak için kayıt / giriş işlemiyle uğraşmak istemez. Giriş yalnızca kişiye özel özellikler (alarm kuralları) için gereklidir.
 
-> **Bir** sistem yöneticisi **olarak**, son X günün depremlerini tek işlemle veritabanına aktarmak **istiyorum**, **böylece** analiz ve sorgulama için geçmiş veriye sahip olurum.
+## 4. Fonksiyonel Olmayan Gereksinimler
 
-**Kabul kriterleri:**
-- [x] `POST /api/afad/import?days=7` çağrıldığında son 7 günün depremleri veritabanına kaydedilir.
-- [x] `days` 1–30 aralığı dışındaysa `400 Bad Request` döner.
-- [x] Yanıtta `fetched`, `added`, `updated` ve `totalInDatabase` değerleri bulunur.
+| No | Kategori | Gereksinim |
+|---|---|---|
+| NFR-01 | Güncellik | Yeni bir deprem, AFAD'da yayımlandıktan sonra en geç **1 dakika** içinde sisteme kaydedilmelidir. Kontrol aralığı ayarlardan değiştirilebilmelidir. |
+| NFR-02 | Doğruluk | Aynı deprem birden fazla kez kaydedilmemelidir. Bu kural hem uygulamada hem veritabanında (unique index) uygulanmalıdır. |
+| NFR-03 | Dayanıklılık | AFAD'a ulaşılamadığında sistem çalışmaya devam etmeli, hatayı kaydetmeli ve bir sonraki turda tekrar denemelidir. |
+| NFR-04 | Güvenlik | Şifreler veritabanında açık metin olarak değil, hash'lenmiş olarak saklanmalıdır. |
+| NFR-05 | Gizlilik | Kullanıcılar yalnızca kendi alarm kurallarını ve bildirimlerini görebilmelidir. Alarm kuralları kullanıcının yaşadığı yeri ele verebileceğinden kişisel veri olarak değerlendirilmeli ve KVKK'ya uygun şekilde işlenmelidir. |
+| NFR-06 | Kaynağa saygı | AFAD'a yapılan istekler makul sıklıkta tutulmalı; toplu veri talepleri günlük parçalara bölünmelidir. |
+| NFR-07 | Performans | Filtreli liste sorguları kullanıcıya hızlı cevap vermelidir (tarih, büyüklük ve il alanlarında index). |
+| NFR-08 | Sorumluluk sınırı | Sistem bir **erken uyarı sistemi değildir**; deprem sonrası bilgi ve takip amaçlıdır. Bu durum kullanıcılara açıkça belirtilmelidir. |
 
-### US-03 — Kopya kayıt önleme
-
-> **Bir** veri analisti **olarak**, aynı depremin veritabanında yalnızca bir kez bulunmasını **istiyorum**, **böylece** sayımlarım ve istatistiklerim doğru olur.
-
-**Kabul kriterleri:**
-- [x] Aynı aralık için içe aktarma ikinci kez çalıştırıldığında `added = 0` olur.
-- [x] Kod hatası olsa bile veritabanı aynı `EventId` ile ikinci kaydı reddeder.
-- [x] AFAD bir depremin büyüklüğünü, derinliğini veya konumunu değiştirmişse mevcut kayıt güncellenir ve `updated` sayısına eklenir.
-
-## 8. İş Kuralları
+## 5. İş Kuralları
 
 | No | Kural |
 |---|---|
 | BR-01 | Bir deprem, AFAD'ın verdiği **EventId** ile tanımlanır. Aynı EventId'ye sahip iki kayıt olamaz. |
-| BR-02 | Veritabanının kendi `Id` numarası yalnızca iç kullanım içindir; depremi tanımak için kullanılmaz. |
-| BR-03 | EventId'si boş gelen kayıtlar geçersiz sayılır ve atlanır. |
-| BR-04 | Mevcut bir kaydın büyüklük, derinlik veya konum bilgisi AFAD'dakinden farklıysa AFAD'daki bilgi esas alınır ve kayıt güncellenir. |
-| BR-05 | Tüm deprem zamanları UTC olarak saklanır (AFAD verisi UTC gelir; Türkiye saati = UTC+3). |
-| BR-06 | İl ve ilçe bilgisi boş olabilir (ör. denizde gerçekleşen depremler). |
-| BR-07 | Önizleme en fazla 48 saat, içe aktarma en fazla 30 gün geriye gidebilir. |
+| BR-02 | Veritabanının kendi `Id` numarası yalnızca iç düzen içindir; depremi tanımak için kullanılmaz. |
+| BR-03 | EventId'si boş gelen kayıtlar veritabanına kaydedilmez; geliştiricilerin incelemesi için log'a yazılır. |
+| BR-04 | Kayıtlı bir depremin bilgisi AFAD'da değişmişse, AFAD'daki **en güncel bilgi** esas alınır ve kayıt güncellenir. |
+| BR-05 | İl bilgisi gelmeyen depremler de kaydedilir; AFAD'ın konum metni olduğu gibi saklanır. |
+| BR-06 | Tüm zamanlar UTC olarak saklanır; kullanıcıya Türkiye saatiyle (UTC+3) gösterilir. |
+| BR-07 | Alarm kuralı, büyüklük **eşit veya büyük** olduğunda tetiklenir (4.0 kuralı 4.0 depremde çalışır). |
+| BR-08 | İl seçilmeyen alarm kuralı Türkiye genelindeki tüm depremler için geçerlidir. |
+| BR-09 | Büyüklüğü sonradan güncellenen bir deprem kuralı karşılar hale gelirse bildirim oluşturulur. |
+| BR-10 | Aynı deprem için aynı kurala en fazla **bir** bildirim oluşturulur; büyüklük sonradan düşse bile mevcut bildirim silinmez. |
 
-## 9. Süreç Akışı — Veri İçe Aktarma
+> **BR-09 / BR-10 uç durumu:** AFAD bir depremi ilk olarak tahmini bir büyüklükle yayımlayıp sonradan düzeltebilir (ör. 3.9 → 4.1). "4.0 ve üzeri" kuralı olan kullanıcıya düzeltme sonrasında bildirim gitmelidir; ters yönde (4.1 → 3.9) daha önce oluşmuş bildirim geri alınmaz.
 
-```mermaid
-flowchart TD
-    A([Başla: İçe aktarma isteği]) --> B{days 1-30 arasında mı?}
-    B -- Hayır --> B1[400 Bad Request döndür] --> Z1([Bitir])
-    B -- Evet --> C[Zaman aralığını gün gün parçala]
-    C --> D[Sıradaki gün için AFAD'dan depremleri çek]
-    D --> E[Gelen EventId'lerden veritabanında olanları bul]
-    E --> F{Sıradaki deprem}
-    F --> G{EventId boş mu?}
-    G -- Evet --> F
-    G -- Hayır --> H{Veritabanında var mı?}
-    H -- Hayır --> I[Yeni kayıt olarak ekle<br/>added + 1]
-    H -- Evet --> J{Bilgiler değişmiş mi?}
-    J -- Evet --> K[Kaydı güncelle<br/>updated + 1]
-    J -- Hayır --> L[Atla]
-    I --> M{Başka deprem var mı?}
-    K --> M
-    L --> M
-    M -- Evet --> F
-    M -- Hayır --> N[Değişiklikleri veritabanına kaydet]
-    N --> O{Başka gün var mı?}
-    O -- Evet --> D
-    O -- Hayır --> P[Özet döndür:<br/>fetched, added, updated, totalInDatabase]
-    P --> Z2([Bitir])
-```
+## 6. Kullanıcı Hikâyeleri
 
-## 10. Sistem Bileşenleri
+### US-04 — Otomatik güncelleme (FR-06) ✅
 
-```mermaid
-flowchart LR
-    U[Kullanıcı / Swagger] -->|HTTP isteği| C[AfadController]
-    C --> I[EarthquakeImporter<br/>iş kuralları]
-    C --> A[AfadClient]
-    I --> A
-    A -->|HTTPS| AFAD[(AFAD API)]
-    I --> DB[(SQL Server<br/>DepremTakip)]
-```
+> **Bir** son kullanıcı **olarak**, yeni depremlerin kimse bir butona basmadan **en geç 1 dakika içinde** sisteme düşmesini **istiyorum**, **böylece** güncel deprem bilgisine hemen ulaşabileyim.
 
-| Bileşen | Sorumluluğu |
-|---|---|
-| **AfadController** | Dışarıdan gelen istekleri karşılar, parametreleri doğrular, sonucu döndürür. |
-| **AfadClient** | AFAD'a HTTP isteği atar, gelen JSON'u `AfadEventDto` listesine çevirir. |
-| **EarthquakeImporter** | İş kurallarını uygular: yeni mi, var mı, değişmiş mi; ekle/güncelle/atla. |
-| **AppDbContext** | Uygulama ile SQL Server arasındaki köprü (Entity Framework Core). |
+**Kabul kriterleri:**
+- [x] Uygulama çalıştığı sürece sistem AFAD'ı **1 dakikada bir** kontrol eder. Bu süre ayar dosyasından (`Sync:IntervalMinutes`) değiştirilebilir.
+- [x] Veritabanı boşsa, ilk açılışta **son 7 günün** depremleri otomatik olarak doldurulur.
+- [x] Her kontrolde en son kayıtlı depremden **6 saat** geriye gidilerek tarama yapılır; böylece AFAD'ın sonradan düzelttiği büyüklükler de yakalanır (BR-04).
+- [x] AFAD'a ulaşılamazsa hata log'a yazılır, uygulama kapanmaz ve bir sonraki turda tekrar denenir (NFR-03).
+- [x] Her turun sonucu (kaç deprem geldiği, eklendiği, güncellendiği) log'a yazılır.
+- [x] Otomatik güncelleme kopya kayıt oluşturmaz (BR-01).
 
-## 11. Veri Modeli
+## 7. Faz Durumu
 
-### 11.1 Earthquakes tablosu
-
-| Alan | Tip | Zorunlu | Açıklama |
-|---|---|---|---|
-| Id | int (PK, otomatik artan) | ✔ | Veritabanının iç numarası |
-| EventId | nvarchar(32), **unique** | ✔ | AFAD'ın deprem numarası |
-| OccurredAtUtc | datetime2 | ✔ | Depremin gerçekleştiği zaman (UTC) |
-| Magnitude | float | ✔ | Büyüklük |
-| MagnitudeType | nvarchar(8) | ✔ | Büyüklük türü (ML, Mw…) |
-| DepthKm | float | ✔ | Derinlik (km) |
-| Latitude | float | ✔ | Enlem |
-| Longitude | float | ✔ | Boylam |
-| Location | nvarchar(256) | ✔ | AFAD'ın konum metni |
-| Province | nvarchar(64) | | İl (boş olabilir) |
-| District | nvarchar(64) | | İlçe (boş olabilir) |
-| CreatedAtUtc | datetime2 | ✔ | Kaydın sisteme eklendiği zaman |
-
-**Index'ler:** `EventId` (unique), `OccurredAtUtc`, `Magnitude`, `Province`
-
-### 11.2 AFAD alanlarının eşleştirilmesi
-
-| AFAD JSON alanı | Örnek değer | Sistemdeki alan | Not |
-|---|---|---|---|
-| eventID | `"597700"` | EventId | |
-| date | `"2026-10-29T16:50:22"` | OccurredAtUtc | UTC olarak işaretleniyor |
-| magnitude | `"3.3"` | Magnitude | Metin → sayı |
-| type | `"ML"` | MagnitudeType | |
-| depth | `"20.18"` | DepthKm | Metin → sayı |
-| latitude / longitude | `"35.92983"` | Latitude / Longitude | Metin → sayı |
-| location | `"Akdeniz - [79.38 km] Kumluca (Antalya)"` | Location | |
-| province / district | `"Antalya"` / `"Kumluca"` | Province / District | Boş gelebilir |
-| rms, country, neighborhood, isEventUpdate, lastUpdateDate | — | *kullanılmıyor* | |
-
-## 12. API Uç Noktaları (Faz 1)
-
-| Metot | Adres | Parametre | Ne yapar | Veritabanını değiştirir mi? |
-|---|---|---|---|---|
-| GET | `/api/afad/preview` | `hours` (1–48, varsayılan 3) | AFAD'daki son depremleri gösterir | Hayır |
-| POST | `/api/afad/import` | `days` (1–30, varsayılan 1) | Son X günün depremlerini kaydeder | Evet |
-
-## 13. Varsayımlar, Kısıtlar ve Riskler
-
-| Tür | Açıklama | Önlem |
+| Faz | İçerik | Durum |
 |---|---|---|
-| Varsayım | AFAD'ın `apiv2/event/filter` servisi erişilebilir ve ücretsizdir. | — |
-| Kısıt | AFAD bu servis için resmi bir doküman yayımlamamıştır; alan adları gözlemle belirlenmiştir. | AFAD verisi ayrı bir DTO'da tutuldu; format değişirse yalnızca o kısım güncellenir. |
-| Kısıt | AFAD sayısal alanları metin olarak gönderir. | JSON okuyucusu metin sayıları kabul edecek şekilde ayarlandı. |
-| Risk | AFAD servisi geçici olarak yanıt vermeyebilir. | 30 sn zaman aşımı; Faz 2'de hata olursa bir sonraki turda tekrar deneme. |
-| Risk | Aynı anda iki içe aktarma çalışırsa kopya oluşma ihtimali. | Veritabanı seviyesinde unique index. |
-
-## 14. Test Sonuçları (29.10.2026)
-
-| Test | Beklenen | Gerçekleşen | Sonuç |
-|---|---|---|---|
-| Önizleme (son 3 saat) | AFAD'daki son depremler JSON olarak gelir, sayılar tırnaksızdır | 12 deprem listelendi, sayılar doğru tipte | ✅ |
-| İlk içe aktarma (7 gün) | Tüm depremler eklenir | 571 deprem eklendi | ✅ |
-| İkinci içe aktarma (aynı 7 gün) | `added = 0` | fetched: 571, added: 0, updated: 0, total: 571 | ✅ |
-| Veritabanı kontrolü (SSMS) | Kayıtlar tabloda görünür | Kayıtlar görüldü | ✅ |
-
-## 15. Sözlük
-
-| Terim | Açıklama |
-|---|---|
-| **API** | Uygulamaların birbirleriyle konuşmasını sağlayan arayüz. Bu projede dışarıdan gelen isteklere deprem verisi sunan servis. |
-| **REST** | API tasarım tarzı. Her işlem bir adres (`/api/afad/import`) ve bir HTTP metodu (GET, POST…) ile ifade edilir. |
-| **GET / POST** | GET yalnızca veri okur, hiçbir şeyi değiştirmez. POST bir işlem yapar veya veri ekler. |
-| **JSON** | API'lerin veri alışverişinde kullandığı metin formatı. |
-| **DTO** | Sadece veri taşımak için kullanılan sınıf. Burada AFAD'dan gelen veriyi karşılayan `AfadEventDto`. |
-| **Entity** | Veritabanındaki bir tabloya karşılık gelen sınıf. Burada `Earthquake`. |
-| **EF Core** | C# kodunu SQL'e çeviren kütüphane; SQL yazmadan veritabanıyla çalışmayı sağlar. |
-| **Migration** | Veritabanı yapısındaki değişikliklerin kayıt altına alınmış hali. Tabloları kod üzerinden oluşturur. |
-| **Unique index** | Bir kolonda aynı değerin iki kez bulunmasını veritabanı seviyesinde engelleyen kural. |
-| **Upsert** | "Yoksa ekle, varsa güncelle" işlemi. |
-| **UTC** | Dünya standart saati. Türkiye saati UTC+3'tür. |
-| **Dependency Injection** | Bir sınıfın ihtiyaç duyduğu nesneleri kendisinin oluşturmak yerine .NET'ten hazır alması. |
-| **Swagger** | API uç noktalarını tarayıcıdan görüp denemeyi sağlayan arayüz. |
+| 1 | AFAD'dan veri çekme, veritabanına kaydetme, kopya önleme (FR-01 – FR-05) | ✅ |
+| 2 | Otomatik güncelleme (FR-06) | ✅ |
+| 3 | Filtreli listeleme ve özet bilgiler (FR-07 – FR-09) | ⏳ |
+| 4 | Kullanıcı kaydı / giriş (FR-10) | ⏳ |
+| 5 | Alarm kuralları ve bildirimler (FR-11, FR-12) | ⏳ |

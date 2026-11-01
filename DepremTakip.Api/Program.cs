@@ -1,6 +1,9 @@
+using System.Reflection;
+using System.Text.Json.Serialization;
 using DepremTakip.Api.Afad;
 using DepremTakip.Api.Data;
 using DepremTakip.Api.Services;
+using DepremTakip.Api.Swagger;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,12 +22,24 @@ builder.Services.AddHttpClient<AfadClient>(client =>
 
 // AFAD verisini veritabanına kaydeden sınıf
 builder.Services.AddScoped<EarthquakeImporter>();
+
+// Arka planda sürekli çalışan nöbetçi: AFAD'ı düzenli kontrol eder
 builder.Services.AddHostedService<EarthquakeSyncService>();
 
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// Seçenekler (ör. sıralama) sayı yerine adıyla görünsün: "Tarih", "Buyukluk"
+builder.Services.AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    // Kodda "///" ile yazdığımız açıklamalar Swagger'da kutuların altında görünsün
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFile));
+
+    // İl kutusu yazı yerine 81 ilden oluşan açılır liste olsun
+    c.ParameterFilter<ProvinceDropdownFilter>();
+});
 
 var app = builder.Build();
 

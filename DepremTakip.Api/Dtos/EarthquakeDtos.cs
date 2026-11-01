@@ -1,0 +1,90 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace DepremTakip.Api.Dtos;
+
+/// <summary>Liste sıralama seçenekleri.</summary>
+public enum SortOption
+{
+    /// <summary>En yeni deprem en üstte.</summary>
+    Tarih,
+    /// <summary>En büyük deprem en üstte.</summary>
+    Buyukluk
+}
+
+/// <summary>Hazır zaman aralıkları.</summary>
+public enum TimePeriod
+{
+    Son24Saat,
+    Son7Gun,
+    Son30Gun,
+    Son90Gun,
+    Son1Yil
+}
+
+// SİPARİŞ FİŞİ: Kullanıcının liste için gönderdiği filtreler.
+// Hepsi isteğe bağlı; boş bırakılan filtre uygulanmaz.
+// "///" ile başlayan açıklamalar Swagger'da kutuların altında görünür.
+public class EarthquakeQuery
+{
+    /// <summary>İl. Listeden seçin; boş bırakırsanız tüm iller gelir.</summary>
+    public string? Province { get; set; }
+
+    /// <summary>Hazır zaman aralığı (ör. Son30Gun). Boş bırakırsanız tarih filtresi uygulanmaz.</summary>
+    public TimePeriod? Period { get; set; }
+
+    /// <summary>(İsteğe bağlı) Özel aralık başlangıcı, UTC. Biçim: yıl-ay-gün, ör. 2026-10-25</summary>
+    public DateTime? From { get; set; }
+
+    /// <summary>(İsteğe bağlı) Özel aralık bitişi, UTC. Biçim: yıl-ay-gün, ör. 2026-10-31</summary>
+    public DateTime? To { get; set; }
+
+    /// <summary>En düşük büyüklük, ör. 4 yazarsanız 4.0 ve üzeri gelir.</summary>
+    public double? MinMagnitude { get; set; }
+
+    /// <summary>En yüksek büyüklük, ör. 5</summary>
+    public double? MaxMagnitude { get; set; }
+
+    /// <summary>En fazla derinlik (km), ör. 10 yazarsanız 10 km'den sığ depremler gelir.</summary>
+    public double? MaxDepthKm { get; set; }
+
+    /// <summary>Sıralama. Boş bırakırsanız en yeni deprem en üstte.</summary>
+    public SortOption? SortBy { get; set; }
+
+    /// <summary>Kaçıncı sayfa. Boş bırakırsanız 1.</summary>
+    [Range(1, int.MaxValue)]
+    public int Page { get; set; } = 1;
+
+    /// <summary>Sayfada kaç deprem olsun (1-100). Boş bırakırsanız 20.</summary>
+    [Range(1, 100)]
+    public int PageSize { get; set; } = 20;
+}
+
+// TABAKTAKİ YEMEK: Kullanıcıya gösterdiğimiz deprem bilgisi.
+public class EarthquakeDto
+{
+    public int Id { get; set; }
+    public string EventId { get; set; } = string.Empty;
+    public DateTime OccurredAtUtc { get; set; }
+    /// <summary>Deprem zamanı, Türkiye saatiyle (UTC+3).</summary>
+    public DateTime OccurredAtTurkey { get; set; }
+    public double Magnitude { get; set; }
+    public string MagnitudeType { get; set; } = string.Empty;
+    public double DepthKm { get; set; }
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public string Location { get; set; } = string.Empty;
+    public string? Province { get; set; }
+    public string? District { get; set; }
+}
+
+// TEPSİ: Bir sayfalık sonuç + sayfa bilgileri.
+public class PagedResult<T>
+{
+    public List<T> Items { get; set; } = new();  // Bu sayfadaki kayıtlar
+    public int Page { get; set; }                 // Kaçıncı sayfa
+    public int PageSize { get; set; }             // Sayfada kaç kayıt
+    public int TotalCount { get; set; }           // Filtreye uyan toplam kayıt
+
+    // Toplam sayfa sayısı, ör. 45 kayıt / 20 = 3 sayfa
+    public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+}
