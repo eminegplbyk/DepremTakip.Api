@@ -29,13 +29,13 @@ public class EarthquakeQuery
     /// <summary>İl. Listeden seçin; boş bırakırsanız tüm iller gelir.</summary>
     public string? Province { get; set; }
 
-    /// <summary>Hazır zaman aralığı (ör. Son30Gun). Boş bırakırsanız tarih filtresi uygulanmaz.</summary>
+    /// <summary>Hazır zaman aralığı (ör. Son30Gun). Bunu seçerseniz From/To boş kalmalı.</summary>
     public TimePeriod? Period { get; set; }
 
-    /// <summary>(İsteğe bağlı) Özel aralık başlangıcı, UTC. Biçim: yıl-ay-gün, ör. 2026-10-25</summary>
+    /// <summary>Özel aralık başlangıcı (yıl-ay-gün, ör. 2026-10-25). Sadece Period boşsa kullanın.</summary>
     public DateTime? From { get; set; }
 
-    /// <summary>(İsteğe bağlı) Özel aralık bitişi, UTC. Biçim: yıl-ay-gün, ör. 2026-10-31</summary>
+    /// <summary>Özel aralık bitişi (yıl-ay-gün, ör. 2026-10-31). Sadece Period boşsa kullanın.</summary>
     public DateTime? To { get; set; }
 
     /// <summary>En düşük büyüklük, ör. 4 yazarsanız 4.0 ve üzeri gelir.</summary>

@@ -23,19 +23,20 @@ public class EarthquakesController : ControllerBase
     public async Task<ActionResult<PagedResult<EarthquakeDto>>> GetList(
         [FromQuery] EarthquakeQuery q, CancellationToken ct)
     {
-        // 1) Tarih aralığını belirle: hazır aralık (Period) ve/veya özel tarihler.
+        // 1) Tarih: ya hazır aralık (Period) ya da özel tarih (From/To). İkisi birden olmaz.
+        if (q.Period.HasValue && (q.From.HasValue || q.To.HasValue))
+            return BadRequest("Hazır aralık (Period) ile özel tarih (From/To) birlikte kullanılamaz. " +
+                              "Ya Period'dan bir seçenek seçin ya da From/To girin; diğerini boş bırakın.");
+
         DateTime? from = q.From;
         DateTime? to = q.To;
         if (q.Period.HasValue)
-        {
-            var periodStart = DateTime.UtcNow - ToTimeSpan(q.Period.Value);
-            // İkisi birden verilmişse daha dar olanı (daha geç başlangıcı) kullan.
-            if (!from.HasValue || from < periodStart) from = periodStart;
-        }
+            from = DateTime.UtcNow - ToTimeSpan(q.Period.Value);
 
-        // 2) Fiş mantıklı mı? Değilse anlaşılır bir hata ver.
+        // 2) Fiş mantıklı mı? Değilse ne yapılması gerektiğini söyleyen bir hata ver.
         if (from.HasValue && to.HasValue && from > to)
-            return BadRequest("Başlangıç tarihi bitiş tarihinden sonra olamaz.");
+            return BadRequest($"Başlangıç tarihi ({from:yyyy-MM-dd}) bitiş tarihinden ({to:yyyy-MM-dd}) sonra olamaz. " +
+                              "From, To'dan önceki bir tarih olmalı.");
 
         if (q.MinMagnitude.HasValue && q.MaxMagnitude.HasValue && q.MinMagnitude > q.MaxMagnitude)
             return BadRequest("En düşük büyüklük en yüksek büyüklükten büyük olamaz.");
