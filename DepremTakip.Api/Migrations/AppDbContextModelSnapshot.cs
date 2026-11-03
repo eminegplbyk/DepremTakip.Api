@@ -71,6 +71,13 @@ namespace DepremTakip.Api.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)")
+                        .HasDefaultValue("AFAD");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EventId")

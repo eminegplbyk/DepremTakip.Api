@@ -5,7 +5,10 @@ namespace DepremTakip.Api.Services;
 
 // NÖBETÇİ: Uygulama açık olduğu sürece arka planda çalışır,
 // belirli aralıklarla AFAD'ı kontrol edip yeni depremleri kaydeder.
-// Ayrıca ilk açılışlarda geçmiş veriyi (varsayılan 1 yıl) bir kereliğine doldurur.
+// Ayrıca ilk açılışlarda geçmiş veriyi EMSC'den bir kereliğine doldurur.
+//
+// Neden iki kaynak? AFAD'ın servisi sadece son ~2 haftanın verisini veriyor.
+// Daha eski veri (ve uygulama uzun süre kapalı kaldıysa aradaki boşluk) EMSC'den alınır.
 public class EarthquakeSyncService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
@@ -36,7 +39,7 @@ public class EarthquakeSyncService : BackgroundService
             // 1) Önce güncel depremleri al.
             await SyncOnceAsync(stoppingToken);
 
-            // 2) Geçmiş veri eksikse bir kereliğine tamamla.
+            // 2) Geçmiş veri eksikse EMSC'den bir kereliğine tamamla.
             await BackfillHistoryAsync(stoppingToken);
 
             // 3) Sonra her turda güncel kontrolü tekrarla.
@@ -64,18 +67,35 @@ public class EarthquakeSyncService : BackgroundService
 
             var now = DateTime.UtcNow;
 
+            // AFAD servisinin geriye kaç gün veri verdiği (gözlem: ~2 hafta; güvenli tarafta kalıyoruz)
+            var afadWindowStart = now.AddDays(-_config.GetValue("Sync:AfadWindowDays", 7));
+
             // Defterdeki en son deprem ne zaman?
             var lastQuake = await db.Earthquakes.MaxAsync(e => (DateTime?)e.OccurredAtUtc, ct);
 
-            // Defter boşsa son 7 günü al (geçmişin geri kalanını BackfillHistoryAsync tamamlar).
+            // Defter boşsa AFAD'ın verebildiği kadarını al (geçmişi BackfillHistoryAsync tamamlar).
             // Doluysa en son depremden 6 saat geriye git (AFAD'ın düzelttiği büyüklükleri yakalamak için).
-            var start = lastQuake.HasValue
-                ? lastQuake.Value.AddHours(-6)
-                : now.AddDays(-7);
+            var start = lastQuake.HasValue ? lastQuake.Value.AddHours(-6) : afadWindowStart;
 
             int fetched = 0, added = 0, updated = 0;
 
-            // Uzun aralıkları gün gün böl, AFAD'ı yormayalım.
+            // Uygulama uzun süre kapalı kaldıysa: AFAD'ın artık vermediği aradaki boşluğu EMSC'den doldur.
+            if (lastQuake.HasValue && lastQuake.Value < afadWindowStart)
+            {
+                _logger.LogInformation("Uygulama kapalıyken oluşan boşluk EMSC'den dolduruluyor ({From:yyyy-MM-dd} → {To:yyyy-MM-dd}).",
+                    lastQuake.Value, afadWindowStart);
+
+                for (var from = lastQuake.Value.AddSeconds(1); from < afadWindowStart; from = from.AddDays(1))
+                {
+                    var to = from.AddDays(1) < afadWindowStart ? from.AddDays(1) : afadWindowStart;
+                    var r = await importer.ImportHistoricalAsync(from, to, ct);
+                    fetched += r.Fetched; added += r.Added; updated += r.Updated;
+                    await Task.Delay(250, ct); // EMSC'yi yormayalım
+                }
+                start = afadWindowStart;
+            }
+
+            // AFAD'dan güncel veriyi gün gün al.
             for (var from = start; from < now; from = from.AddDays(1))
             {
                 var to = from.AddDays(1) < now ? from.AddDays(1) : now;
@@ -96,8 +116,8 @@ public class EarthquakeSyncService : BackgroundService
         }
     }
 
-    // GEÇMİŞİ DOLDURMA: Defterdeki en eski depremden geriye doğru, gün gün,
-    // hedef tarihe (varsayılan 365 gün önce) kadar eksik veriyi tamamlar.
+    // GEÇMİŞİ DOLDURMA (EMSC): Defterdeki en eski depremden geriye doğru, gün gün,
+    // hedef tarihe (varsayılan 1400 gün önce ≈ 2023 başı) kadar eksik veriyi tamamlar.
     // Geriye doğru gittiği için yarıda kesilirse bir sonraki açılışta kaldığı yerden devam eder.
     private async Task BackfillHistoryAsync(CancellationToken ct)
     {
@@ -126,11 +146,13 @@ public class EarthquakeSyncService : BackgroundService
 
         var totalDays = (int)Math.Ceiling((earliest.Value - target).TotalDays);
         _logger.LogInformation(
-            "Geçmiş veri dolduruluyor: {Days} gün ({Target:yyyy-MM-dd} → {Earliest:yyyy-MM-dd}). Bu işlem birkaç dakika sürebilir.",
+            "Geçmiş veri EMSC'den dolduruluyor: {Days} gün ({Target:yyyy-MM-dd} → {Earliest:yyyy-MM-dd}). Bu işlem uzun sürebilir.",
             totalDays, target, earliest.Value);
 
-        int dayCount = 0, totalAdded = 0;
-        for (var to = earliest.Value; to > target; to = to.AddDays(-1))
+        int dayCount = 0, totalFetched = 0, totalAdded = 0;
+
+        // En eski kaydın 1 saniye öncesinden başla: aynı deprem iki kaynaktan iki kez gelmesin.
+        for (var to = earliest.Value.AddSeconds(-1); to > target; to = to.AddDays(-1))
         {
             var from = to.AddDays(-1) > target ? to.AddDays(-1) : target;
             try
@@ -138,20 +160,21 @@ public class EarthquakeSyncService : BackgroundService
                 // Her gün için yeni scope: bellekte binlerce kayıt birikmesin.
                 using var scope = _scopeFactory.CreateScope();
                 var importer = scope.ServiceProvider.GetRequiredService<EarthquakeImporter>();
-                var result = await importer.ImportAsync(from, to, ct);
+                var result = await importer.ImportHistoricalAsync(from, to, ct);
+                totalFetched += result.Fetched;
                 totalAdded += result.Added;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _logger.LogWarning(ex, "{From:yyyy-MM-dd} günü alınamadı, atlanıyor.", from);
+                _logger.LogWarning(ex, "{From:yyyy-MM-dd} günü EMSC'den alınamadı, atlanıyor.", from);
             }
 
             dayCount++;
             if (dayCount % 30 == 0)
-                _logger.LogInformation("Geçmiş veri: {Done}/{Total} gün tamamlandı, {Added} deprem eklendi.",
-                    dayCount, totalDays, totalAdded);
+                _logger.LogInformation("Geçmiş veri: {Done}/{Total} gün tamamlandı, {Fetched} deprem geldi, {Added} eklendi.",
+                    dayCount, totalDays, totalFetched, totalAdded);
 
-            // AFAD'ı yormamak için her gün arasında kısa bir mola (NFR-06).
+            // EMSC'yi yormamak için her gün arasında kısa bir mola (NFR-06).
             await Task.Delay(250, ct);
         }
 

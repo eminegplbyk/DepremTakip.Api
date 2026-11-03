@@ -1,9 +1,7 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.Linq.Expressions;
+using System.ComponentModel.DataAnnotations;
 using DepremTakip.Api.Data;
 using DepremTakip.Api.Dtos;
 using DepremTakip.Api.Helpers;
-using DepremTakip.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,7 +21,11 @@ public class SummaryController : ControllerBase
     /// <summary>Bir il için seçilen dönemin deprem özeti (ör. Malatya, son 30 gün). Giriş gerektirmez.</summary>
     /// <param name="province">İl. Listeden seçin.</param>
     /// <param name="period">Dönem. Boş bırakırsanız son 30 gün.</param>
+    /// <response code="200">İlin özeti. O dönemde deprem yoksa totalCount = 0 olan bir özet döner.</response>
+    /// <response code="400">Bilinmeyen il adı.</response>
     [HttpGet("province")]
+    [ProducesResponseType(typeof(ProvinceSummaryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ProvinceSummaryDto>> GetProvinceSummary(
         [FromQuery, Required] string province,
         [FromQuery] TimePeriod period = TimePeriod.Son30Gun,
@@ -36,7 +38,7 @@ public class SummaryController : ControllerBase
 
         // 2) Dönemin başlangıcını hesapla
         var now = DateTime.UtcNow;
-        var from = now - ToTimeSpan(period);
+        var from = now - period.ToTimeSpan();
 
         // 3) Bu ilde bu dönemdeki depremler
         var quakes = _db.Earthquakes.AsNoTracking()
@@ -60,11 +62,11 @@ public class SummaryController : ControllerBase
 
         summary.Strongest = await quakes
             .OrderByDescending(e => e.Magnitude).ThenByDescending(e => e.OccurredAtUtc)
-            .Select(ToDto).FirstAsync(ct);
+            .Select(Mappings.ToDto).FirstAsync(ct);
 
         summary.Latest = await quakes
             .OrderByDescending(e => e.OccurredAtUtc)
-            .Select(ToDto).FirstAsync(ct);
+            .Select(Mappings.ToDto).FirstAsync(ct);
 
         // 6) Büyüklük gruplarına göre say
         summary.Bands = new MagnitudeBands
@@ -77,30 +79,4 @@ public class SummaryController : ControllerBase
 
         return Ok(summary);
     }
-
-    // Earthquake -> EarthquakeDto dönüşümü (veritabanı sorgusunun içinde çalışır)
-    private static readonly Expression<Func<Earthquake, EarthquakeDto>> ToDto = e => new EarthquakeDto
-    {
-        Id = e.Id,
-        EventId = e.EventId,
-        OccurredAtUtc = e.OccurredAtUtc,
-        OccurredAtTurkey = e.OccurredAtUtc.AddHours(3),
-        Magnitude = e.Magnitude,
-        MagnitudeType = e.MagnitudeType,
-        DepthKm = e.DepthKm,
-        Latitude = e.Latitude,
-        Longitude = e.Longitude,
-        Location = e.Location,
-        Province = e.Province,
-        District = e.District
-    };
-
-    private static TimeSpan ToTimeSpan(TimePeriod period) => period switch
-    {
-        TimePeriod.Son24Saat => TimeSpan.FromHours(24),
-        TimePeriod.Son7Gun => TimeSpan.FromDays(7),
-        TimePeriod.Son30Gun => TimeSpan.FromDays(30),
-        TimePeriod.Son90Gun => TimeSpan.FromDays(90),
-        _ => TimeSpan.FromDays(365)
-    };
 }

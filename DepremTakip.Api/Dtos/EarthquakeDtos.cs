@@ -64,6 +64,8 @@ public class EarthquakeDto
 {
     public int Id { get; set; }
     public string EventId { get; set; } = string.Empty;
+    /// <summary>Verinin kaynağı: AFAD (canlı) veya EMSC (geçmiş veri, il bilgisi yaklaşık).</summary>
+    public string Source { get; set; } = string.Empty;
     public DateTime OccurredAtUtc { get; set; }
     /// <summary>Deprem zamanı, Türkiye saatiyle (UTC+3).</summary>
     public DateTime OccurredAtTurkey { get; set; }

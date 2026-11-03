@@ -18,8 +18,16 @@ public class EarthquakesController : ControllerBase
     }
 
     /// <summary>Depremleri filtreleyip sayfa sayfa listeler. Giriş gerektirmez.</summary>
+    /// <remarks>
+    /// Tüm filtreler isteğe bağlıdır. Tarih için ya hazır dönem (Period) ya da özel aralık (From/To) kullanılır, ikisi birlikte kullanılamaz.
+    /// Örnek: /api/earthquakes?Province=Malatya&amp;Period=Son30Gun&amp;MinMagnitude=3
+    /// </remarks>
+    /// <response code="200">Filtreye uyan depremler ve sayfa bilgisi.</response>
+    /// <response code="400">Geçersiz istek (ör. bilinmeyen il, Period ile From/To birlikte, başlangıç bitişten sonra). Mesaj ne yapılması gerektiğini söyler.</response>
     // GARSON: Sipariş fişine (filtrelere) uyan depremleri sayfa sayfa getirir (FR-07, FR-09).
     [HttpGet]
+    [ProducesResponseType(typeof(PagedResult<EarthquakeDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<PagedResult<EarthquakeDto>>> GetList(
         [FromQuery] EarthquakeQuery q, CancellationToken ct)
     {
@@ -31,7 +39,7 @@ public class EarthquakesController : ControllerBase
         DateTime? from = q.From;
         DateTime? to = q.To;
         if (q.Period.HasValue)
-            from = DateTime.UtcNow - ToTimeSpan(q.Period.Value);
+            from = DateTime.UtcNow - q.Period.Value.ToTimeSpan();
 
         // 2) Fiş mantıklı mı? Değilse ne yapılması gerektiğini söyleyen bir hata ver.
         if (from.HasValue && to.HasValue && from > to)
@@ -48,7 +56,10 @@ public class EarthquakesController : ControllerBase
         if (!string.IsNullOrWhiteSpace(q.Province))
         {
             // "istanbul" / "Istanbul" yazılsa da resmi yazımı "İstanbul" ile ara.
-            var province = Provinces.Match(q.Province) ?? q.Province.Trim();
+            // Bilinmeyen bir il yazıldıysa sessizce boş liste dönmek yerine anlaşılır bir hata ver (özet ile tutarlı).
+            var province = Provinces.Match(q.Province);
+            if (province == null)
+                return BadRequest($"'{q.Province}' adında bir il bulunamadı. Lütfen listeden bir il seçin.");
             query = query.Where(e => e.Province == province);
         }
         if (from.HasValue)
@@ -89,21 +100,7 @@ public class EarthquakesController : ControllerBase
         var items = await query
             .Skip((q.Page - 1) * q.PageSize)
             .Take(q.PageSize)
-            .Select(e => new EarthquakeDto
-            {
-                Id = e.Id,
-                EventId = e.EventId,
-                OccurredAtUtc = e.OccurredAtUtc,
-                OccurredAtTurkey = e.OccurredAtUtc.AddHours(3), // BR-06: Türkiye saati
-                Magnitude = e.Magnitude,
-                MagnitudeType = e.MagnitudeType,
-                DepthKm = e.DepthKm,
-                Latitude = e.Latitude,
-                Longitude = e.Longitude,
-                Location = e.Location,
-                Province = e.Province,
-                District = e.District
-            })
+            .Select(Mappings.ToDto)
             .ToListAsync(ct);
 
         // 8) Tepsiye koy ve gönder.
@@ -115,13 +112,4 @@ public class EarthquakesController : ControllerBase
             TotalCount = total
         });
     }
-
-    private static TimeSpan ToTimeSpan(TimePeriod period) => period switch
-    {
-        TimePeriod.Son24Saat => TimeSpan.FromHours(24),
-        TimePeriod.Son7Gun => TimeSpan.FromDays(7),
-        TimePeriod.Son30Gun => TimeSpan.FromDays(30),
-        TimePeriod.Son90Gun => TimeSpan.FromDays(90),
-        _ => TimeSpan.FromDays(365)
-    };
 }

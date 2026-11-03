@@ -1,5 +1,6 @@
 using DepremTakip.Api.Afad;
 using DepremTakip.Api.Data;
+using DepremTakip.Api.Emsc;
 using DepremTakip.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,73 +8,104 @@ namespace DepremTakip.Api.Services;
 
 public record ImportResult(int Fetched, int Added, int Updated);
 
-// AFAD'dan gelen depremleri veritabanına kaydeder:
-// yeni deprem -> ekle, zaten varsa ve AFAD bilgisini değiştirdiyse -> güncelle.
+// Depremleri veritabanına kaydeder (KAYIT MEMURU):
+// yeni deprem -> ekle, zaten varsa ve bilgisi değiştiyse -> güncelle.
+// İki kaynaktan beslenir: AFAD (canlı, son ~2 hafta) ve EMSC (geçmiş veri).
 public class EarthquakeImporter
 {
     private readonly AppDbContext _db;
     private readonly AfadClient _afad;
+    private readonly EmscClient _emsc;
 
-    public EarthquakeImporter(AppDbContext db, AfadClient afad)
+    public EarthquakeImporter(AppDbContext db, AfadClient afad, EmscClient emsc)
     {
         _db = db;
         _afad = afad;
+        _emsc = emsc;
     }
 
+    // AFAD'dan (canlı veri) içe aktarır
     public async Task<ImportResult> ImportAsync(DateTime startUtc, DateTime endUtc, CancellationToken ct = default)
     {
-        // 1) AFAD'dan bu aralıktaki depremleri al
         var events = await _afad.GetEventsAsync(startUtc, endUtc, ct);
 
-        // 2) Bunlardan hangileri bizde zaten var? Tek sorguda bul.
-        var ids = events.Select(e => e.EventId).Distinct().ToList();
+        var incoming = events
+            .Where(dto => !string.IsNullOrWhiteSpace(dto.EventId)) // BR-03: numarası olmayan kayıt alınmaz
+            .Select(dto => new Earthquake
+            {
+                EventId = dto.EventId,
+                Source = "AFAD",
+                OccurredAtUtc = DateTime.SpecifyKind(dto.Date, DateTimeKind.Utc), // AFAD saatleri UTC
+                Magnitude = dto.Magnitude,
+                MagnitudeType = dto.Type ?? "",
+                DepthKm = dto.Depth,
+                Latitude = dto.Latitude,
+                Longitude = dto.Longitude,
+                Location = dto.Location ?? "",
+                Province = dto.Province,
+                District = dto.District
+            })
+            .ToList();
+
+        var (added, updated) = await UpsertAsync(incoming, ct);
+        return new ImportResult(events.Count, added, updated);
+    }
+
+    // EMSC'den (geçmiş veri) içe aktarır
+    public async Task<ImportResult> ImportHistoricalAsync(DateTime startUtc, DateTime endUtc, CancellationToken ct = default)
+    {
+        var incoming = await _emsc.GetEventsAsync(startUtc, endUtc, ct);
+        var (added, updated) = await UpsertAsync(incoming, ct);
+        return new ImportResult(incoming.Count, added, updated);
+    }
+
+    // Ortak kayıt mantığı: kaynak fark etmeksizin "yoksa ekle, değiştiyse güncelle"
+    private async Task<(int Added, int Updated)> UpsertAsync(List<Earthquake> incoming, CancellationToken ct)
+    {
+        // Bunlardan hangileri bizde zaten var? Tek sorguda bul.
+        var ids = incoming.Select(e => e.EventId).Distinct().ToList();
         var existing = await _db.Earthquakes
             .Where(e => ids.Contains(e.EventId))
             .ToDictionaryAsync(e => e.EventId, ct);
 
         int added = 0, updated = 0;
 
-        foreach (var dto in events)
+        foreach (var eq in incoming)
         {
-            if (string.IsNullOrWhiteSpace(dto.EventId)) continue; // bozuk kayıt, atla
-
-            if (existing.TryGetValue(dto.EventId, out var eq))
+            if (existing.TryGetValue(eq.EventId, out var current))
             {
-                // Zaten var: AFAD büyüklüğü/yeri sonradan düzelttiyse biz de güncelleyelim
-                if (eq.Magnitude != dto.Magnitude || eq.DepthKm != dto.Depth || eq.Location != (dto.Location ?? ""))
+                // Zaten var: kaynak büyüklüğü/yeri sonradan düzelttiyse biz de güncelleyelim (BR-04)
+                if (current.Magnitude != eq.Magnitude || current.DepthKm != eq.DepthKm || current.Location != eq.Location)
                 {
-                    Copy(dto, eq);
+                    Copy(eq, current);
                     updated++;
                 }
             }
             else
             {
                 // Yeni deprem: ekle
-                var newEq = new Earthquake { EventId = dto.EventId, CreatedAtUtc = DateTime.UtcNow };
-                Copy(dto, newEq);
-                _db.Earthquakes.Add(newEq);
-                existing[dto.EventId] = newEq; // AFAD aynı depremi iki kez gönderirse ikinciyi ekleme
+                eq.CreatedAtUtc = DateTime.UtcNow;
+                _db.Earthquakes.Add(eq);
+                existing[eq.EventId] = eq; // aynı cevapta iki kez gelirse ikinciyi ekleme
                 added++;
             }
         }
 
-        // 3) Hepsini tek seferde veritabanına yaz
+        // Hepsini tek seferde veritabanına yaz
         await _db.SaveChangesAsync(ct);
-
-        return new ImportResult(events.Count, added, updated);
+        return (added, updated);
     }
 
-    // DTO'daki bilgileri Earthquake nesnesine aktarır
-    private static void Copy(AfadEventDto dto, Earthquake eq)
+    private static void Copy(Earthquake from, Earthquake to)
     {
-        eq.OccurredAtUtc = DateTime.SpecifyKind(dto.Date, DateTimeKind.Utc); // AFAD saatleri UTC
-        eq.Magnitude = dto.Magnitude;
-        eq.MagnitudeType = dto.Type ?? "";
-        eq.DepthKm = dto.Depth;
-        eq.Latitude = dto.Latitude;
-        eq.Longitude = dto.Longitude;
-        eq.Location = dto.Location ?? "";
-        eq.Province = dto.Province;
-        eq.District = dto.District;
+        to.OccurredAtUtc = from.OccurredAtUtc;
+        to.Magnitude = from.Magnitude;
+        to.MagnitudeType = from.MagnitudeType;
+        to.DepthKm = from.DepthKm;
+        to.Latitude = from.Latitude;
+        to.Longitude = from.Longitude;
+        to.Location = from.Location;
+        to.Province = from.Province;
+        to.District = from.District;
     }
 }

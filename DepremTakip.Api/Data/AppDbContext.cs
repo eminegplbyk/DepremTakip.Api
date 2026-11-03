@@ -1,4 +1,4 @@
-﻿using DepremTakip.Api.Models;
+using DepremTakip.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace DepremTakip.Api.Data;
@@ -15,6 +15,9 @@ public class AppDbContext : DbContext
         {
             e.Property(x => x.EventId).HasMaxLength(32).IsRequired();
             e.HasIndex(x => x.EventId).IsUnique();   // Aynı deprem iki kez eklenemesin
+
+            // Mevcut kayıtların hepsi AFAD'dan geldiği için varsayılan değer "AFAD"
+            e.Property(x => x.Source).HasMaxLength(8).IsRequired().HasDefaultValue("AFAD");
 
             e.Property(x => x.MagnitudeType).HasMaxLength(8);
             e.Property(x => x.Location).HasMaxLength(256);

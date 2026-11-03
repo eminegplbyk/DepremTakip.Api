@@ -6,6 +6,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DepremTakip.Api.Controllers;
 
+// İç kullanım / test amaçlı uç noktalar. Nöbetçi (EarthquakeSyncService) bu işi otomatik yaptığı için
+// dışarıdaki geliştiricilerin kafasını karıştırmasın diye Swagger'da gösterilmiyor; uç noktalar çalışmaya devam eder.
+[ApiExplorerSettings(IgnoreApi = true)]
 [ApiController]
 [Route("api/afad")]
 public class AfadController : ControllerBase
