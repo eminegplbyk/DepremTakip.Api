@@ -19,10 +19,11 @@ Deprem bilgisine birçok kaynaktan ulaşılabiliyor, ancak bu kaynaklar çoğunl
 - **İl özeti:** Bir il için seçilen dönemdeki deprem sayısı, en büyük deprem, ortalama büyüklük ve büyüklük grupları.
 - **Swagger dokümantasyonu:** Türkçe açıklamalar; il, dönem ve sıralama için açılır listeler.
 - **Power BI dashboard:** 3 sayfa (Genel Bakış, Zaman Analizi, İl Analizi), veritabanına DirectQuery ile bağlı.
+- **Birim testleri:** xUnit ile 45 test (iş kuralları, veri okuma, filtreler).
 
 ## Teknolojiler
 
-.NET 8 · ASP.NET Core Web API · Entity Framework Core · SQL Server · BackgroundService · Swagger (Swashbuckle) · Power BI (DirectQuery, DAX)
+.NET 8 · ASP.NET Core Web API · Entity Framework Core · SQL Server · BackgroundService · Swagger (Swashbuckle) · xUnit · Power BI (DirectQuery, DAX)
 
 ## Mimari
 
@@ -40,6 +41,7 @@ EMSC FDSN ───┘   (1 dk'da bir, upsert)           └──> Power BI (Di
 | `Dtos/`, `Helpers/` | Cevap modelleri, 81 il listesi ve il eşleştirme |
 | `powerbi/` | Power BI dosyası (`DepremTakip.pbix`) |
 | `docs/` | İş analizi dokümanı ve Power BI teması |
+| `DepremTakip.Api.Tests/` | xUnit birim testleri |
 
 ## API
 
@@ -75,6 +77,22 @@ Projenin gereksinimleri kod yazılmadan önce ve geliştirme boyunca dokümante 
 
 📄 **[docs/is-analizi.md](docs/is-analizi.md)**
 
+## Testler
+
+`DepremTakip.Api.Tests` projesinde **xUnit ile 45 birim testi** vardır. Testler gerçek SQL Server'a ve internete bağlanmaz: veritabanı için EF Core InMemory, AFAD / EMSC için sahte HTTP cevapları kullanılır.
+
+| Test sınıfı | Neyi doğrular |
+|---|---|
+| `ProvincesTests` | İl adı eşleştirme ("istanbul" → "İstanbul"), en yakın il hesabı; Simav → Uşak ve 6 Şubat merkez üssü → Gaziantep gibi bulguları belgeler |
+| `EmscClientTests` | EMSC metin cevabının okunması, hatalı satırların atlanması, yurt dışı depremler, 204 cevabı |
+| `EarthquakeImporterTests` | Kopya kayıt oluşmaması (BR-01), büyüklük düzeltmesinde güncelleme (BR-04), numarasız kaydın alınmaması (BR-03) |
+| `EarthquakesControllerTests` | Filtreler, sıralama, sayfalama, hatalı isteklerde 400 (BR-11), il özeti |
+| `MappingsTests` | Dönem hesapları ve Türkiye saati (BR-06) |
+
+```bash
+dotnet test
+```
+
 ## Çalıştırma
 
 Gereksinimler: .NET 8 SDK, SQL Server (Express yeterli), Power BI Desktop (dashboard için).
@@ -100,7 +118,7 @@ Ayarlar (`appsettings.json` → `Sync`):
 
 - [ ] İl atamasını il merkezine uzaklık yerine gerçek il sınırlarıyla yapmak
 - [ ] Kullanıcı kaydı ve alarm kuralları ("Ankara'da 4.0 ve üzeri olursa haber ver")
-- [ ] Birim testleri
+- [ ] Entegrasyon testleri (gerçek SQL Server ile)
 
 ---
 
