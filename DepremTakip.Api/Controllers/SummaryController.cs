@@ -31,16 +31,13 @@ public class SummaryController : ControllerBase
         [FromQuery] TimePeriod period = TimePeriod.Son30Gun,
         CancellationToken ct = default)
     {
-        // 1) İl adı geçerli mi? ("istanbul" yazılsa da "İstanbul" bulunur)
         var name = Provinces.Match(province);
         if (name == null)
             return BadRequest($"'{province}' adında bir il bulunamadı. Lütfen listeden bir il seçin.");
 
-        // 2) Dönemin başlangıcını hesapla
         var now = DateTime.UtcNow;
         var from = now - period.ToTimeSpan();
 
-        // 3) Bu ilde bu dönemdeki depremler
         var quakes = _db.Earthquakes.AsNoTracking()
             .Where(e => e.Province == name && e.OccurredAtUtc >= from);
 
@@ -53,11 +50,9 @@ public class SummaryController : ControllerBase
             TotalCount = await quakes.CountAsync(ct)
         };
 
-        // 4) Hiç deprem yoksa hata değil, "0 deprem" özeti dön (kabul kriteri 4)
         if (summary.TotalCount == 0)
             return Ok(summary);
 
-        // 5) Ortalama, en büyük ve en son deprem
         summary.AverageMagnitude = Math.Round(await quakes.AverageAsync(e => e.Magnitude, ct), 2);
 
         summary.Strongest = await quakes
@@ -68,7 +63,6 @@ public class SummaryController : ControllerBase
             .OrderByDescending(e => e.OccurredAtUtc)
             .Select(Mappings.ToDto).FirstAsync(ct);
 
-        // 6) Büyüklük gruplarına göre say
         summary.Bands = new MagnitudeBands
         {
             Below3 = await quakes.CountAsync(e => e.Magnitude < 3, ct),

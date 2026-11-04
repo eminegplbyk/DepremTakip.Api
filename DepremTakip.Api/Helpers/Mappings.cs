@@ -4,17 +4,15 @@ using DepremTakip.Api.Models;
 
 namespace DepremTakip.Api.Helpers;
 
-// Birden fazla controller'ın kullandığı ortak dönüşümler (önceden her controller'da ayrı ayrı yazılıydı).
 public static class Mappings
 {
-    // Earthquake -> EarthquakeDto (veritabanı sorgusunun içinde, SQL'e çevrilerek çalışır)
     public static readonly Expression<Func<Earthquake, EarthquakeDto>> ToDto = e => new EarthquakeDto
     {
         Id = e.Id,
         EventId = e.EventId,
         Source = e.Source,
         OccurredAtUtc = e.OccurredAtUtc,
-        OccurredAtTurkey = e.OccurredAtUtc.AddHours(3), // BR-06: Türkiye saati
+        OccurredAtTurkey = e.OccurredAtUtc.AddHours(3),
         Magnitude = e.Magnitude,
         MagnitudeType = e.MagnitudeType,
         DepthKm = e.DepthKm,
@@ -25,7 +23,6 @@ public static class Mappings
         District = e.District
     };
 
-    // Hazır dönemi süreye çevirir: Son7Gun -> 7 gün
     public static TimeSpan ToTimeSpan(this TimePeriod period) => period switch
     {
         TimePeriod.Son24Saat => TimeSpan.FromHours(24),

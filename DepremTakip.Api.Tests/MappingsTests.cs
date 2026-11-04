@@ -4,7 +4,6 @@ using DepremTakip.Api.Models;
 
 namespace DepremTakip.Api.Tests;
 
-// Ortak dönüşümler (Helpers/Mappings.cs)
 public class MappingsTests
 {
     [Theory]
@@ -21,7 +20,6 @@ public class MappingsTests
     [Fact]
     public void ToDto_TurkiyeSaati_UtcArti3Olur()
     {
-        // BR-06: zamanlar UTC saklanır, Türkiye saatiyle (UTC+3) gösterilir
         var quake = new Earthquake
         {
             EventId = "1",

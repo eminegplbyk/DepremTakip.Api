@@ -1,9 +1,7 @@
 namespace DepremTakip.Api.Helpers;
 
-// Türkiye'nin 81 ili, il merkezi koordinatları ve il eşleştirme yardımcıları.
 public static class Provinces
 {
-    // İl adı ve il merkezinin yaklaşık koordinatı (enlem, boylam)
     private static readonly (string Name, double Lat, double Lon)[] Centers =
     {
         ("Adana", 37.00, 35.32), ("Adıyaman", 37.76, 38.28), ("Afyonkarahisar", 38.76, 30.54), ("Ağrı", 39.72, 43.05),
@@ -31,9 +29,6 @@ public static class Provinces
 
     public static readonly string[] All = Centers.Select(c => c.Name).ToArray();
 
-    // Kullanıcının yazdığı il adını resmi yazımına çevirir.
-    // "istanbul", "Istanbul", "ISTANBUL" -> "İstanbul"; "kutahya" -> "Kütahya".
-    // Eşleşme yoksa null döner.
     public static string? Match(string? input)
     {
         if (string.IsNullOrWhiteSpace(input)) return null;
@@ -41,9 +36,6 @@ public static class Provinces
         return All.FirstOrDefault(p => Normalize(p) == key);
     }
 
-    // Bir koordinata EN YAKIN il merkezini bulur (EMSC kayıtlarında il bilgisi olmadığı için).
-    // Bu YAKLAŞIK bir atamadır: il sınırlarına değil, il merkezine olan mesafeye bakar.
-    // En yakın il merkezi maxKm'den uzaksa (ör. komşu ülke) null döner.
     public static string? Nearest(double lat, double lon, double maxKm)
     {
         var best = Centers
@@ -53,10 +45,9 @@ public static class Provinces
         return best.Km <= maxKm ? best.Name : null;
     }
 
-    // İki koordinat arasındaki kuş uçuşu mesafe (km), Haversine formülü
     private static double DistanceKm(double lat1, double lon1, double lat2, double lon2)
     {
-        const double R = 6371; // Dünya yarıçapı (km)
+        const double R = 6371;
         double dLat = ToRad(lat2 - lat1), dLon = ToRad(lon2 - lon1);
         double a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
                    Math.Cos(ToRad(lat1)) * Math.Cos(ToRad(lat2)) * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
@@ -65,7 +56,6 @@ public static class Provinces
 
     private static double ToRad(double deg) => deg * Math.PI / 180;
 
-    // Türkçe karakterleri sadeleştirip küçük harfe çevirir: "İzmir" -> "izmir", "Şırnak" -> "sirnak".
     private static string Normalize(string s)
     {
         var chars = s.Trim().Select(c => c switch

@@ -4,13 +4,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DepremTakip.Api.Tests;
 
-// Kayıt memuru: yoksa ekle, değiştiyse güncelle (Services/EarthquakeImporter.cs)
 public class EarthquakeImporterTests
 {
     private static readonly DateTime Start = new(2026, 11, 3, 0, 0, 0, DateTimeKind.Utc);
     private static readonly DateTime End = new(2026, 11, 4, 0, 0, 0, DateTimeKind.Utc);
 
-    // AFAD'ın gerçek cevabı gibi: sayılar tırnak içinde geliyor
     private static string AfadEvent(string eventId, string magnitude) =>
         $$"""
         {"eventID":"{{eventId}}","location":"Yeşilyurt (Malatya)","latitude":"38.29","longitude":"38.25",
@@ -42,7 +40,6 @@ public class EarthquakeImporterTests
     [Fact]
     public async Task Import_AyniDepremIkinciKezGelirse_KopyaOlusmaz()
     {
-        // BR-01 / FR-04: aynı EventId iki kez kaydedilmez
         using var db = TestHelpers.NewDb();
         var body = AfadResponse(AfadEvent("100", "3.9"));
         var importer = new EarthquakeImporter(db, TestHelpers.Afad(FakeHandler.Returns(body)), TestHelpers.Emsc(Unused));
@@ -71,7 +68,6 @@ public class EarthquakeImporterTests
     [Fact]
     public async Task Import_AfadBuyukluguDuzeltirse_KayitGuncellenir()
     {
-        // BR-04 / FR-05: AFAD 3.9'u sonradan 4.1'e düzeltirse yeni kayıt açılmaz, mevcut kayıt güncellenir
         using var db = TestHelpers.NewDb();
         var body = AfadResponse(AfadEvent("100", "3.9"));
         var importer = new EarthquakeImporter(db, TestHelpers.Afad(new FakeHandler(_ => new HttpResponseMessage
@@ -92,7 +88,6 @@ public class EarthquakeImporterTests
     [Fact]
     public async Task Import_EventIdBosOlanKayit_Kaydedilmez()
     {
-        // BR-03: numarası olmayan kayıt alınmaz
         using var db = TestHelpers.NewDb();
         var body = AfadResponse(AfadEvent("", "3.0"), AfadEvent("100", "3.9"));
         var importer = new EarthquakeImporter(db, TestHelpers.Afad(FakeHandler.Returns(body)), TestHelpers.Emsc(Unused));

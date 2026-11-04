@@ -3,7 +3,6 @@ using DepremTakip.Api.Tests.Fakes;
 
 namespace DepremTakip.Api.Tests;
 
-// EMSC'nin metin cevabını okuma (Emsc/EmscClient.cs)
 public class EmscClientTests
 {
     private const string Header =
@@ -37,10 +36,10 @@ public class EmscClientTests
     {
         var body = Header + "\n" +
                    "\n" +
-                   "eksik|satir|var\n" +                                                                         // alan sayısı az
-                   "20230206_1|2023-02-06T02:00:00|37.5|37.0|5|EMSC|X|EMSC|1|ml||EMSC|CENTRAL TURKEY\n" +         // büyüklük yok
-                   "|2023-02-06T03:00:00|37.5|37.0|5|EMSC|X|EMSC|1|ml|3.1|EMSC|CENTRAL TURKEY\n" +                // EventId yok
-                   "20230206_2|2023-02-06T04:00:00|37.5|37.0|5|EMSC|X|EMSC|1|ml|3.4|EMSC|CENTRAL TURKEY\n";       // geçerli
+                   "eksik|satir|var\n" +
+                   "20230206_1|2023-02-06T02:00:00|37.5|37.0|5|EMSC|X|EMSC|1|ml||EMSC|CENTRAL TURKEY\n" +
+                   "|2023-02-06T03:00:00|37.5|37.0|5|EMSC|X|EMSC|1|ml|3.1|EMSC|CENTRAL TURKEY\n" +
+                   "20230206_2|2023-02-06T04:00:00|37.5|37.0|5|EMSC|X|EMSC|1|ml|3.4|EMSC|CENTRAL TURKEY\n";
         var emsc = TestHelpers.Emsc(FakeHandler.Returns(body, mediaType: "text/plain"));
 
         var result = await emsc.GetEventsAsync(Start, End);
@@ -65,7 +64,6 @@ public class EmscClientTests
     [Fact]
     public async Task GetEvents_204NoContent_BosListeDoner()
     {
-        // FDSN standardı: aralıkta deprem yoksa 204 döner, bu hata değildir
         var emsc = TestHelpers.Emsc(new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent)));
 
         var result = await emsc.GetEventsAsync(Start, End);

@@ -24,14 +24,12 @@ public class EarthquakesController : ControllerBase
     /// </remarks>
     /// <response code="200">Filtreye uyan depremler ve sayfa bilgisi.</response>
     /// <response code="400">Geçersiz istek (ör. bilinmeyen il, Period ile From/To birlikte, başlangıç bitişten sonra). Mesaj ne yapılması gerektiğini söyler.</response>
-    // GARSON: Sipariş fişine (filtrelere) uyan depremleri sayfa sayfa getirir (FR-07, FR-09).
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<EarthquakeDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<PagedResult<EarthquakeDto>>> GetList(
         [FromQuery] EarthquakeQuery q, CancellationToken ct)
     {
-        // 1) Tarih: ya hazır aralık (Period) ya da özel tarih (From/To). İkisi birden olmaz.
         if (q.Period.HasValue && (q.From.HasValue || q.To.HasValue))
             return BadRequest("Hazır aralık (Period) ile özel tarih (From/To) birlikte kullanılamaz. " +
                               "Ya Period'dan bir seçenek seçin ya da From/To girin; diğerini boş bırakın.");
@@ -41,7 +39,6 @@ public class EarthquakesController : ControllerBase
         if (q.Period.HasValue)
             from = DateTime.UtcNow - q.Period.Value.ToTimeSpan();
 
-        // 2) Fiş mantıklı mı? Değilse ne yapılması gerektiğini söyleyen bir hata ver.
         if (from.HasValue && to.HasValue && from > to)
             return BadRequest($"Başlangıç tarihi ({from:yyyy-MM-dd}) bitiş tarihinden ({to:yyyy-MM-dd}) sonra olamaz. " +
                               "From, To'dan önceki bir tarih olmalı.");
@@ -49,14 +46,10 @@ public class EarthquakesController : ControllerBase
         if (q.MinMagnitude.HasValue && q.MaxMagnitude.HasValue && q.MinMagnitude > q.MaxMagnitude)
             return BadRequest("En düşük büyüklük en yüksek büyüklükten büyük olamaz.");
 
-        // 3) Defterin tamamıyla başla (henüz veritabanına gidilmedi, sorgu hazırlanıyor).
         var query = _db.Earthquakes.AsNoTracking().AsQueryable();
 
-        // 4) Fişte hangi filtre doluysa onu uygula.
         if (!string.IsNullOrWhiteSpace(q.Province))
         {
-            // "istanbul" / "Istanbul" yazılsa da resmi yazımı "İstanbul" ile ara.
-            // Bilinmeyen bir il yazıldıysa sessizce boş liste dönmek yerine anlaşılır bir hata ver (özet ile tutarlı).
             var province = Provinces.Match(q.Province);
             if (province == null)
                 return BadRequest($"'{q.Province}' adında bir il bulunamadı. Lütfen listeden bir il seçin.");
@@ -88,22 +81,18 @@ public class EarthquakesController : ControllerBase
             query = query.Where(e => e.DepthKm <= depth);
         }
 
-        // 5) Sırala: varsayılan en yeni en üstte; istenirse en büyük en üstte.
         query = q.SortBy == SortOption.Buyukluk
             ? query.OrderByDescending(e => e.Magnitude).ThenByDescending(e => e.OccurredAtUtc)
             : query.OrderByDescending(e => e.OccurredAtUtc);
 
-        // 6) Filtreye uyan toplam kaç deprem var?
         var total = await query.CountAsync(ct);
 
-        // 7) Sadece istenen sayfayı al ve DTO'ya çevir.
         var items = await query
             .Skip((q.Page - 1) * q.PageSize)
             .Take(q.PageSize)
             .Select(Mappings.ToDto)
             .ToListAsync(ct);
 
-        // 8) Tepsiye koy ve gönder.
         return Ok(new PagedResult<EarthquakeDto>
         {
             Items = items,

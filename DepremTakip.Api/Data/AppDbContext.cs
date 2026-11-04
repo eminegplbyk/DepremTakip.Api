@@ -14,9 +14,8 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Earthquake>(e =>
         {
             e.Property(x => x.EventId).HasMaxLength(32).IsRequired();
-            e.HasIndex(x => x.EventId).IsUnique();   // Aynı deprem iki kez eklenemesin
+            e.HasIndex(x => x.EventId).IsUnique();
 
-            // Mevcut kayıtların hepsi AFAD'dan geldiği için varsayılan değer "AFAD"
             e.Property(x => x.Source).HasMaxLength(8).IsRequired().HasDefaultValue("AFAD");
 
             e.Property(x => x.MagnitudeType).HasMaxLength(8);
@@ -24,7 +23,6 @@ public class AppDbContext : DbContext
             e.Property(x => x.Province).HasMaxLength(64);
             e.Property(x => x.District).HasMaxLength(64);
 
-            // Filtrelerde sık kullanacağımız kolonlar, sorgular hızlı olsun diye index
             e.HasIndex(x => x.OccurredAtUtc);
             e.HasIndex(x => x.Magnitude);
             e.HasIndex(x => x.Province);

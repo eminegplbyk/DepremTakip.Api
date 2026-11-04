@@ -6,8 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DepremTakip.Api.Controllers;
 
-// İç kullanım / test amaçlı uç noktalar. Nöbetçi (EarthquakeSyncService) bu işi otomatik yaptığı için
-// dışarıdaki geliştiricilerin kafasını karıştırmasın diye Swagger'da gösterilmiyor; uç noktalar çalışmaya devam eder.
 [ApiExplorerSettings(IgnoreApi = true)]
 [ApiController]
 [Route("api/afad")]
@@ -24,8 +22,6 @@ public class AfadController : ControllerBase
         _db = db;
     }
 
-    // AFAD'dan son X saatin depremlerini getirir, veritabanına KAYDETMEZ (sadece bakmak için).
-    // GET /api/afad/preview?hours=3
     [HttpGet("preview")]
     public async Task<IActionResult> Preview([FromQuery] int hours = 3, CancellationToken ct = default)
     {
@@ -36,8 +32,6 @@ public class AfadController : ControllerBase
         return Ok(events);
     }
 
-    // AFAD'dan son X günün depremlerini çekip veritabanına KAYDEDER.
-    // POST /api/afad/import?days=7
     [HttpPost("import")]
     public async Task<IActionResult> Import([FromQuery] int days = 1, CancellationToken ct = default)
     {
@@ -46,7 +40,6 @@ public class AfadController : ControllerBase
         var now = DateTime.UtcNow;
         int fetched = 0, added = 0, updated = 0;
 
-        // AFAD'ı yormamak için gün gün çekiyoruz
         for (var start = now.AddDays(-days); start < now; start = start.AddDays(1))
         {
             var end = start.AddDays(1) < now ? start.AddDays(1) : now;

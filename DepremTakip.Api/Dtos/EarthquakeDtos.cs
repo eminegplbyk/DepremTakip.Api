@@ -21,9 +21,6 @@ public enum TimePeriod
     Son1Yil
 }
 
-// SİPARİŞ FİŞİ: Kullanıcının liste için gönderdiği filtreler.
-// Hepsi isteğe bağlı; boş bırakılan filtre uygulanmaz.
-// "///" ile başlayan açıklamalar Swagger'da kutuların altında görünür.
 public class EarthquakeQuery
 {
     /// <summary>İl. Listeden seçin; boş bırakırsanız tüm iller gelir.</summary>
@@ -59,7 +56,6 @@ public class EarthquakeQuery
     public int PageSize { get; set; } = 20;
 }
 
-// TABAKTAKİ YEMEK: Kullanıcıya gösterdiğimiz deprem bilgisi.
 public class EarthquakeDto
 {
     public int Id { get; set; }
@@ -79,14 +75,12 @@ public class EarthquakeDto
     public string? District { get; set; }
 }
 
-// TEPSİ: Bir sayfalık sonuç + sayfa bilgileri.
 public class PagedResult<T>
 {
-    public List<T> Items { get; set; } = new();  // Bu sayfadaki kayıtlar
-    public int Page { get; set; }                 // Kaçıncı sayfa
-    public int PageSize { get; set; }             // Sayfada kaç kayıt
-    public int TotalCount { get; set; }           // Filtreye uyan toplam kayıt
+    public List<T> Items { get; set; } = new();
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
 
-    // Toplam sayfa sayısı, ör. 45 kayıt / 20 = 3 sayfa
     public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
 }

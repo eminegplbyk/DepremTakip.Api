@@ -8,9 +8,6 @@ namespace DepremTakip.Api.Services;
 
 public record ImportResult(int Fetched, int Added, int Updated);
 
-// Depremleri veritabanına kaydeder (KAYIT MEMURU):
-// yeni deprem -> ekle, zaten varsa ve bilgisi değiştiyse -> güncelle.
-// İki kaynaktan beslenir: AFAD (canlı, son ~2 hafta) ve EMSC (geçmiş veri).
 public class EarthquakeImporter
 {
     private readonly AppDbContext _db;
@@ -24,18 +21,17 @@ public class EarthquakeImporter
         _emsc = emsc;
     }
 
-    // AFAD'dan (canlı veri) içe aktarır
     public async Task<ImportResult> ImportAsync(DateTime startUtc, DateTime endUtc, CancellationToken ct = default)
     {
         var events = await _afad.GetEventsAsync(startUtc, endUtc, ct);
 
         var incoming = events
-            .Where(dto => !string.IsNullOrWhiteSpace(dto.EventId)) // BR-03: numarası olmayan kayıt alınmaz
+            .Where(dto => !string.IsNullOrWhiteSpace(dto.EventId))
             .Select(dto => new Earthquake
             {
                 EventId = dto.EventId,
                 Source = "AFAD",
-                OccurredAtUtc = DateTime.SpecifyKind(dto.Date, DateTimeKind.Utc), // AFAD saatleri UTC
+                OccurredAtUtc = DateTime.SpecifyKind(dto.Date, DateTimeKind.Utc),
                 Magnitude = dto.Magnitude,
                 MagnitudeType = dto.Type ?? "",
                 DepthKm = dto.Depth,
@@ -51,7 +47,6 @@ public class EarthquakeImporter
         return new ImportResult(events.Count, added, updated);
     }
 
-    // EMSC'den (geçmiş veri) içe aktarır
     public async Task<ImportResult> ImportHistoricalAsync(DateTime startUtc, DateTime endUtc, CancellationToken ct = default)
     {
         var incoming = await _emsc.GetEventsAsync(startUtc, endUtc, ct);
@@ -59,10 +54,8 @@ public class EarthquakeImporter
         return new ImportResult(incoming.Count, added, updated);
     }
 
-    // Ortak kayıt mantığı: kaynak fark etmeksizin "yoksa ekle, değiştiyse güncelle"
     private async Task<(int Added, int Updated)> UpsertAsync(List<Earthquake> incoming, CancellationToken ct)
     {
-        // Bunlardan hangileri bizde zaten var? Tek sorguda bul.
         var ids = incoming.Select(e => e.EventId).Distinct().ToList();
         var existing = await _db.Earthquakes
             .Where(e => ids.Contains(e.EventId))
@@ -74,7 +67,6 @@ public class EarthquakeImporter
         {
             if (existing.TryGetValue(eq.EventId, out var current))
             {
-                // Zaten var: kaynak büyüklüğü/yeri sonradan düzelttiyse biz de güncelleyelim (BR-04)
                 if (current.Magnitude != eq.Magnitude || current.DepthKm != eq.DepthKm || current.Location != eq.Location)
                 {
                     Copy(eq, current);
@@ -83,15 +75,13 @@ public class EarthquakeImporter
             }
             else
             {
-                // Yeni deprem: ekle
                 eq.CreatedAtUtc = DateTime.UtcNow;
                 _db.Earthquakes.Add(eq);
-                existing[eq.EventId] = eq; // aynı cevapta iki kez gelirse ikinciyi ekleme
+                existing[eq.EventId] = eq;
                 added++;
             }
         }
 
-        // Hepsini tek seferde veritabanına yaz
         await _db.SaveChangesAsync(ct);
         return (added, updated);
     }

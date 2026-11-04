@@ -5,7 +5,6 @@ using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace DepremTakip.Api.Swagger;
 
-// Swagger'da "Province" kutusunu yazı kutusu yerine 81 ilin listelendiği açılır menü yapar.
 public class ProvinceDropdownFilter : IParameterFilter
 {
     public void Apply(OpenApiParameter parameter, ParameterFilterContext context)

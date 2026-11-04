@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DepremTakip.Api.Tests.Fakes;
 
-// Gerçek internete çıkmadan, AFAD / EMSC'nin vereceği cevabı taklit eden sahte "sunucu".
 public class FakeHandler : HttpMessageHandler
 {
     private readonly Func<HttpRequestMessage, HttpResponseMessage> _respond;
@@ -18,14 +17,12 @@ public class FakeHandler : HttpMessageHandler
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         => Task.FromResult(_respond(request));
 
-    // Her istekte aynı metni döndüren sahte sunucu
     public static FakeHandler Returns(string body, HttpStatusCode status = HttpStatusCode.OK, string mediaType = "application/json")
         => new(_ => new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, mediaType) });
 }
 
 public static class TestHelpers
 {
-    // Her test kendi boş, bellekteki veritabanını alır (testler birbirini etkilemez).
     public static AppDbContext NewDb()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -40,7 +37,6 @@ public static class TestHelpers
     public static EmscClient Emsc(HttpMessageHandler handler) =>
         new(new HttpClient(handler) { BaseAddress = new Uri("https://emsc.test/fdsnws/event/1/") });
 
-    // Test verisi hazırlamayı kısaltan yardımcı
     public static Earthquake Quake(string eventId, string? province, double magnitude, DateTime occurredAtUtc, double depthKm = 10) => new()
     {
         EventId = eventId,

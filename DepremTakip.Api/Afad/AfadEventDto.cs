@@ -2,7 +2,6 @@
 
 namespace DepremTakip.Api.Afad;
 
-// AFAD'ın /apiv2/event/filter cevabındaki tek bir deprem
 public class AfadEventDto
 {
     [JsonPropertyName("eventID")]

@@ -6,12 +6,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DepremTakip.Api.Tests;
 
-// Filtreli liste (GET /api/earthquakes) ve il özeti (GET /api/summary/province)
 public class EarthquakesControllerTests
 {
     private static readonly DateTime Now = DateTime.UtcNow;
 
-    // Örnek veri: 3 Malatya, 1 İzmir, 1 il bilgisi olmayan deprem
     private static AppDbContext SeededDb()
     {
         var db = TestHelpers.NewDb();
@@ -28,12 +26,9 @@ public class EarthquakesControllerTests
     private static PagedResult<EarthquakeDto> Ok(ActionResult<PagedResult<EarthquakeDto>> result) =>
         Assert.IsType<PagedResult<EarthquakeDto>>(Assert.IsType<OkObjectResult>(result.Result).Value);
 
-    // ---------- Hatalı istekler: anlaşılır 400 dönmeli ----------
-
     [Fact]
     public async Task GetList_PeriodVeFromBirlikte_BadRequest()
     {
-        // BR-11: hazır dönem ile özel tarih birlikte kullanılamaz
         using var db = SeededDb();
         var result = await new EarthquakesController(db).GetList(
             new EarthquakeQuery { Period = TimePeriod.Son7Gun, From = Now.AddDays(-10) }, default);
@@ -71,8 +66,6 @@ public class EarthquakesControllerTests
         Assert.IsType<BadRequestObjectResult>(result.Result);
     }
 
-    // ---------- Filtreleme, sıralama, sayfalama ----------
-
     [Fact]
     public async Task GetList_FiltreYok_TumDepremlerEnYeniEnUstte()
     {
@@ -100,7 +93,7 @@ public class EarthquakesControllerTests
         var page = Ok(await new EarthquakesController(db).GetList(
             new EarthquakeQuery { Province = "Malatya", Period = TimePeriod.Son30Gun }, default));
 
-        Assert.Equal(new[] { "1", "2" }, page.Items.Select(e => e.EventId)); // 60 gün önceki dışarıda
+        Assert.Equal(new[] { "1", "2" }, page.Items.Select(e => e.EventId));
     }
 
     [Fact]
@@ -110,7 +103,6 @@ public class EarthquakesControllerTests
         var page = Ok(await new EarthquakesController(db).GetList(
             new EarthquakeQuery { MinMagnitude = 3, MaxMagnitude = 4.5, MaxDepthKm = 15 }, default));
 
-        // 4.2'lik deprem 25 km derinlikte olduğu için elenir
         Assert.Equal(new[] { "5", "3" }, page.Items.Select(e => e.EventId));
     }
 
@@ -134,8 +126,6 @@ public class EarthquakesControllerTests
         Assert.Equal(5, page.TotalCount);
         Assert.Equal(new[] { "5", "2" }, page.Items.Select(e => e.EventId));
     }
-
-    // ---------- İl özeti ----------
 
     [Fact]
     public async Task ProvinceSummary_DepremYoksa_HataDegilSifirOzetDoner()
